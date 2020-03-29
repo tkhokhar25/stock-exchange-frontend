@@ -1,26 +1,29 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
-void main() => runApp(MyApp());
+import 'package:flutter/material.dart';
+import 'package:flutter_socket_io/flutter_socket_io.dart';
+import 'package:flutter_socket_io/socket_io_manager.dart';
+
+void main() => runApp(new MyApp());
 
 class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return new MaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(
+      theme: new ThemeData(
         // This is the theme of your application.
         //
         // Try running your application with "flutter run". You'll see the
         // application has a blue toolbar. Then, without quitting the app, try
         // changing the primarySwatch below to Colors.green and then invoke
         // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
+        // or press Run > Flutter Hot Reload in IntelliJ). Notice that the
+        // counter didn't reset back to zero; the application is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Flutter Demo Home Page'),
+      home: new MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
@@ -40,72 +43,136 @@ class MyHomePage extends StatefulWidget {
   final String title;
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _MyHomePageState createState() => new _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  String _roomId = 'None';
+  var mTextMessageController = new TextEditingController();
+  SocketIO socketIO;
+  SocketIO socketIO02;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  _connectSocket01() {
+    //update your domain before using
+    /*socketIO = new SocketIO("http://127.0.0.1:3000", "/chat",
+        query: "userId=21031", socketStatusCallback: _socketStatus);*/
+    socketIO = SocketIOManager().createSocketIO("http://10.0.2.2:5000", "/user", query: "userId=21031", socketStatusCallback: _socketStatus);
+
+    //call init socket before doing anything
+    socketIO.init();
+
+    //subscribe event
+    socketIO.subscribe("socket_info", _onSocketInfo);
+
+    //connect socket
+    socketIO.connect();
+  }
+
+  _onSocketInfo(dynamic data) {
+    print("\n\n\n\n\n\n\n\n\n" + data + "\n\n\n\n\n\n\n\n");
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _roomId = data;
     });
+  }
+
+  _socketStatus(dynamic data) {
+    print("Socket status: " + data);
+  }
+
+  _unSubscribes() {
+    if (socketIO != null) {
+      socketIO.unSubscribe("chat_direct", _onReceiveChatMessage);
+    }
+  }
+
+  _reconnectSocket() {
+    if (socketIO == null) {
+      _connectSocket01();
+    } else {
+      socketIO.connect();
+    }
+  }
+
+  _disconnectSocket() {
+    if (socketIO != null) {
+      socketIO.disconnect();
+    }
+  }
+
+  _destroySocket() {
+    if (socketIO != null) {
+      SocketIOManager().destroySocket(socketIO);
+    }
+  }
+
+  void _createRequest() async {
+    if (socketIO != null) {
+      socketIO.sendMessage("create", jsonEncode({'username' : 'Hello'}), _onReceiveChatMessage);
+    }
+  }
+
+  void _joinRequest(String room) async {
+    if (socketIO != null) {
+      socketIO.sendMessage("join", jsonEncode({'username' : 'Hello2', 'room' : room}), _onReceiveChatMessage);
+    }
+  }
+
+  void socketInfo(dynamic message) {
+    print("Socket Info: " + message);
+  }
+
+  void _onReceiveChatMessage(dynamic message) {
+    print("Message from UFO: " + message);
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+    return new Scaffold(
+      appBar: new AppBar(
+        title: new Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
+      body: new Center(
+        child: new Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
-              'You have pushed the button this many times:',
+            new RaisedButton(
+              child:
+                  const Text('CONNECT  SOCKET 01', style: TextStyle(color: Colors.white)),
+              color: Theme.of(context).accentColor,
+              elevation: 0.0,
+              splashColor: Colors.blueGrey,
+              onPressed: () {
+                _connectSocket01();
+              },
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.display1,
+            new RaisedButton(
+              child: const Text('Create', style: TextStyle(color: Colors.white)),
+              color: Theme.of(context).accentColor,
+              elevation: 0.0,
+              splashColor: Colors.blueGrey,
+              onPressed: () {
+                _createRequest();
+              },
             ),
+            new RaisedButton(
+              child: const Text('Join',
+                  style: TextStyle(color: Colors.white)),
+              color: Theme.of(context).accentColor,
+              elevation: 0.0,
+              splashColor: Colors.blueGrey,
+              onPressed: () {
+                _joinRequest('ABCDE');
+              },
+            ),
+            new Text(_roomId),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
