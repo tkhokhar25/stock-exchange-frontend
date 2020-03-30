@@ -13,14 +13,6 @@ class MyApp extends StatelessWidget {
     return new MaterialApp(
       title: 'Flutter Demo',
       theme: new ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or press Run > Flutter Hot Reload in IntelliJ). Notice that the
-        // counter didn't reset back to zero; the application is not restarted.
         primarySwatch: Colors.blue,
       ),
       home: new MyHomePage(title: 'Flutter Demo Home Page'),
@@ -30,16 +22,6 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   MyHomePage({Key key, this.title}) : super(key: key);
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
   final String title;
 
   @override
@@ -48,35 +30,31 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   String _roomId = 'None';
-  var mTextMessageController = new TextEditingController();
-  SocketIO socketIO;
-  SocketIO socketIO02;
+  
+  var roomIdController = new TextEditingController();
+  var usernameController = new TextEditingController();
 
+  SocketIO socketIO;
+
+  List<dynamic> _users = <dynamic>[];
+  
   @override
   void initState() {
     super.initState();
+    _connectSocket();
   }
 
-  _connectSocket01() {
-    //update your domain before using
-    /*socketIO = new SocketIO("http://127.0.0.1:3000", "/chat",
-        query: "userId=21031", socketStatusCallback: _socketStatus);*/
-    socketIO = SocketIOManager().createSocketIO("http://10.0.2.2:5000", "/user", query: "userId=21031", socketStatusCallback: _socketStatus);
-
-    //call init socket before doing anything
+  _connectSocket() {
+    socketIO = SocketIOManager().createSocketIO("http://10.0.2.2:5000", "/user", query: "userId=21031", socketStatusCallback: _callMeFromPython);
     socketIO.init();
-
-    //subscribe event
-    socketIO.subscribe("socket_info", _onSocketInfo);
-
-    //connect socket
+    socketIO.subscribe("call_me", _callMeFromPython);
     socketIO.connect();
   }
 
-  _onSocketInfo(dynamic data) {
-    print("\n\n\n\n\n\n\n\n\n" + data + "\n\n\n\n\n\n\n\n");
+  _callMeFromPython(dynamic data) {
+    List<dynamic> newUsers = jsonDecode(data);
     setState(() {
-      _roomId = data;
+      _users = newUsers;
     });
   }
 
@@ -86,13 +64,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   _unSubscribes() {
     if (socketIO != null) {
-      socketIO.unSubscribe("chat_direct", _onReceiveChatMessage);
+      socketIO.unSubscribe("chat_direct", _onReceive);
     }
   }
 
   _reconnectSocket() {
     if (socketIO == null) {
-      _connectSocket01();
+      _connectSocket();
     } else {
       socketIO.connect();
     }
@@ -112,13 +90,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _createRequest() async {
     if (socketIO != null) {
-      socketIO.sendMessage("create", jsonEncode({'username' : 'Hello'}), _onReceiveChatMessage);
+      socketIO.sendMessage("create", jsonEncode({'username' : usernameController.text}), _onReceive);
     }
   }
 
-  void _joinRequest(String room) async {
+  void _joinRequest() async {
     if (socketIO != null) {
-      socketIO.sendMessage("join", jsonEncode({'username' : 'Hello2', 'room' : room}), _onReceiveChatMessage);
+      socketIO.sendMessage("join", jsonEncode({'username' : usernameController.text, 'room' : roomIdController.text}), _onReceive);
     }
   }
 
@@ -126,8 +104,10 @@ class _MyHomePageState extends State<MyHomePage> {
     print("Socket Info: " + message);
   }
 
-  void _onReceiveChatMessage(dynamic message) {
-    print("Message from UFO: " + message);
+  void _onReceive(dynamic message) {
+    setState(() {
+      _roomId = message;
+    });
   }
 
   @override
@@ -140,16 +120,14 @@ class _MyHomePageState extends State<MyHomePage> {
         child: new Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            new RaisedButton(
-              child:
-                  const Text('CONNECT  SOCKET 01', style: TextStyle(color: Colors.white)),
-              color: Theme.of(context).accentColor,
-              elevation: 0.0,
-              splashColor: Colors.blueGrey,
-              onPressed: () {
-                _connectSocket01();
-              },
+            Padding(
+              padding: const EdgeInsets.all(40.0),
+              child: new TextField(
+                  controller: usernameController,
+                  decoration: new InputDecoration(hintText: "Enter username")
+              ),
             ),
+            new Text("RoomID: " + _roomId),
             new RaisedButton(
               child: const Text('Create', style: TextStyle(color: Colors.white)),
               color: Theme.of(context).accentColor,
@@ -159,17 +137,36 @@ class _MyHomePageState extends State<MyHomePage> {
                 _createRequest();
               },
             ),
+            Padding(
+              padding: const EdgeInsets.all(40.0),
+              child: new TextField(
+                  controller: roomIdController,
+                  decoration: new InputDecoration(hintText: "Enter existing Room ID")
+              ),
+            ),
             new RaisedButton(
               child: const Text('Join',
-                  style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: Colors.white)),
               color: Theme.of(context).accentColor,
               elevation: 0.0,
               splashColor: Colors.blueGrey,
               onPressed: () {
-                _joinRequest('ABCDE');
+                _joinRequest();
               },
             ),
-            new Text(_roomId),
+            new ListView.separated(
+              scrollDirection: Axis.vertical,
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(8),
+              itemCount: _users.length,
+              itemBuilder: (BuildContext context, int index) {
+                return Container(
+                  height: 50,
+                  child: Center(child: Text('${_users[index]}')),
+                );
+              },
+              separatorBuilder: (BuildContext context, int index) => const Divider(),
+            ),
           ],
         ),
       ),
